@@ -1,0 +1,12 @@
+name = "il2cpp-dumper-online-api"
+main = "src/index.js"
+compatibility_date = "2026-11-20"
+
+[[r2_buckets]]
+binding = "JOBS_BUCKET"
+bucket_name = "il2cpp-dumper-jobs"
+
+[vars]
+GITHUB_OWNER = "hieuvlog2001-creator"
+GITHUB_REPO = "Il2CppDumper-Online"
+MAX_UPLOAD_MB = "40"

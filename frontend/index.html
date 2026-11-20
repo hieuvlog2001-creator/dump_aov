@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827"><title>Il2CppDumper Online</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header><div class="logo">ID</div><div><p class="eyebrow">AOV • IL2CPP ANALYSIS</p><h1>Il2CppDumper <span>Online</span></h1><p class="sub">Phân tích IL2CPP trực tuyến · Powered by GitHub Actions + Cloudflare</p></div></header>
+    <section class="panel">
+      <div class="section-head"><div><p class="eyebrow">INPUT FILES</p><h2>Chọn dữ liệu đầu vào</h2></div><span class="pill">Android / iOS</span></div>
+      <label class="filebox"><span class="fileicon">01</span><span><b>Executable / Binary</b><small>Android: libil2cpp.so · iOS: UnityFramework hoặc executable</small><em id="binary-name">Chưa chọn file</em></span><input id="binary" type="file"></label>
+      <label class="filebox"><span class="fileicon">02</span><span><b>Global Metadata</b><small>global-metadata.dat</small><em id="metadata-name">Chưa chọn file</em></span><input id="metadata" type="file"></label>
+      <div class="options"><label><input id="fast" type="checkbox"> Fast mode (khi engine hỗ trợ)</label><label><input id="password" type="password" placeholder="Mật khẩu website (nếu được cấu hình)"></label></div>
+      <button id="submit">Bắt đầu Dump <span>→</span></button>
+      <p class="hint">Giới hạn upload mặc định: 40 MB tổng hai file. Không tải APK/IPA nguyên gói trong phiên bản đầu.</p>
+    </section>
+    <section class="panel status-panel" id="status-panel" hidden>
+      <div class="section-head"><div><p class="eyebrow">TASK STATUS</p><h2 id="status-title">Đang chờ...</h2></div><span id="status-pill" class="pill">QUEUED</span></div>
+      <p id="status-message" class="sub"></p><code id="job-id"></code>
+      <a id="download" class="download" hidden href="#">Tải kết quả ZIP ↓</a>
+    </section>
+    <footer><span>Il2CppDumper GUI AoV · Web edition</span><span>Cần bật R2 Lifecycle để tự xóa file tạm</span></footer>
+  </main>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body></html>
