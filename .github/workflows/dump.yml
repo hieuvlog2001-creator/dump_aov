@@ -1,0 +1,84 @@
+name: Il2CppDumper dump job
+
+on:
+  repository_dispatch:
+    types: [il2cpp-dump]
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Existing job ID (normally dispatched by the Worker)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: il2cpp-dump-${{ github.event.client_payload.job_id || inputs.job_id }}
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set job variables
+        shell: pwsh
+        run: |
+          $id = '${{ github.event.client_payload.job_id || inputs.job_id }}'
+          if ([string]::IsNullOrWhiteSpace($id)) { throw 'Missing job_id' }
+          "JOB_ID=$id" >> $env:GITHUB_ENV
+          if ([string]::IsNullOrWhiteSpace('${{ secrets.WORKER_URL }}')) { throw 'Missing WORKER_URL Actions secret' }
+          "WORKER_URL=${{ secrets.WORKER_URL }}" >> $env:GITHUB_ENV
+
+      - name: Download input files from Cloudflare R2 via Worker
+        shell: pwsh
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:RUNNER_SECRET)) { throw 'Missing RUNNER_SECRET Actions secret' }
+          New-Item -ItemType Directory -Force -Path work/input, work/output | Out-Null
+          $headers = @{ Authorization = "Bearer $env:RUNNER_SECRET" }
+          Invoke-WebRequest -Headers $headers -Uri "$env:WORKER_URL/internal/jobs/$env:JOB_ID/input/binary" -OutFile "work/input/binary"
+          Invoke-WebRequest -Headers $headers -Uri "$env:WORKER_URL/internal/jobs/$env:JOB_ID/input/metadata" -OutFile "work/input/global-metadata.dat"
+          Invoke-RestMethod -Method Post -Headers $headers -Uri "$env:WORKER_URL/internal/jobs/$env:JOB_ID/status" -ContentType 'application/json' -Body (@{status='running';message='Files received. Starting IL2CPP engine.'} | ConvertTo-Json)
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run original Il2CppDumper core through CLI adapter
+        shell: pwsh
+        run: |
+          dotnet run --project engine/Il2CppDumper.Engine/Il2CppDumper.Engine.csproj --configuration Release -- work/input/binary work/input/global-metadata.dat work/output
+          if ($LASTEXITCODE -ne 0) { throw "Il2CppDumper engine failed with exit code $LASTEXITCODE" }
+
+      - name: Package results
+        shell: pwsh
+        run: |
+          if (-not (Get-ChildItem work/output -Force | Select-Object -First 1)) { throw 'Engine produced no output files.' }
+          Compress-Archive -Path 'work/output/*' -DestinationPath 'work/result.zip' -Force
+
+      - name: Upload result to Cloudflare and mark job complete
+        shell: pwsh
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:RUNNER_SECRET" }
+          Invoke-WebRequest -Method Put -Headers $headers -Uri "$env:WORKER_URL/internal/jobs/$env:JOB_ID/result" -InFile 'work/result.zip' -ContentType 'application/zip'
+
+      - name: Mark job failed if a previous step failed
+        if: failure()
+        shell: pwsh
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: |
+          if ($env:RUNNER_SECRET -and $env:WORKER_URL -and $env:JOB_ID) {
+            $headers = @{ Authorization = "Bearer $env:RUNNER_SECRET" }
+            $body = @{status='error';message='GitHub Actions runner failed. Open the workflow run logs for details.'} | ConvertTo-Json
+            try { Invoke-RestMethod -Method Post -Headers $headers -Uri "$env:WORKER_URL/internal/jobs/$env:JOB_ID/status" -ContentType 'application/json' -Body $body } catch { Write-Warning $_ }
+          }
